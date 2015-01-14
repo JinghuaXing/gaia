@@ -1,0 +1,151 @@
+diff --git a/apps/wappush/js/parsed_doc.js b/apps/wappush/js/parsed_doc.js
+index 330b7f9..db1081a 100644
+--- a/apps/wappush/js/parsed_doc.js
++++ b/apps/wappush/js/parsed_doc.js
+@@ -39,13 +39,7 @@
+     this._pxLogicalNodes = null;
+ 
+     /** Array containing APN objects */
+-    this._apns = [],
+-
+-    /** Array containing APN proxy objects  */
+-    this._proxies = [];
+-
+-    /** APNs are ready to use (flag) */
+-    this._apnsReady = false;
++    this._apns = [];
+   }
+ 
+   ParsedProvisioningDoc.prototype = {
+@@ -197,6 +190,12 @@
+         return obj;
+       }
+ 
++      function addProperties(src, dst) {
++        for (var key in src) {
++          dst[key] = src[key];
++        }
++      }
++
+       var parser = new DOMParser();
+       var domDocument = parser.parseFromString(this._provisioningDoc,
+                                                CONTENT_TYPE);
+@@ -277,7 +301,6 @@
+             for (var m = 0; m < pxPhysicalNodes.length; m++) {
+               proxy = parsePxPhysicalNode(pxPhysicalNodes[m],
+                                           (TYPE_MAPPING[appId] === 'mms'));
+-              this._proxies.push(proxy);
+               for (var n = 0; n < proxy['TO-NAPID'].length; n++) {
+                 napDefNode = this.getNapDefNode(proxy['TO-NAPID'][n]);
+                 apn = parseNapDefNode(napDefNode);
+@@ -287,6 +310,7 @@
+                 if ((TYPE_MAPPING[appId] === 'mms') && addr) {
+                   apn.mmsc = addr;
+                 }
++                addProperties(proxy, apn);
+                 this._apns.push(apn);
+               }
+             }
+@@ -314,30 +338,6 @@
+      * @return {Array} The list of APN objects.
+      */
+     getApns: function ppd_getApns() {
+-      function addProperties(src, dst) {
+-        for (var key in src) {
+-          dst[key] = src[key];
+-        }
+-      }
+-
+-      if (this._apnsReady) {
+-        return this._apns;
+-      }
+-      for (var i = 0; i < this._proxies.length; i++) {
+-        var proxy = this._proxies[i];
+-        for (var j = 0; j < proxy['TO-NAPID'].length; j++) {
+-          var TO_NAPID = proxy['TO-NAPID'][j];
+-          for (var k = 0; k < this._apns.length; k++) {
+-            var apn = this._apns[k];
+-            if (TO_NAPID === apn.NAPID) {
+-              addProperties(proxy, apn);
+-              break;
+-            }
+-          }
+-        }
+-      }
+-
+-      this._apnsReady = true;
+       return this._apns;
+     }
+   };
+diff --git a/apps/wappush/test/unit/parsed_doc_test.js b/apps/wappush/test/unit/parsed_doc_test.js
+index 5b48538..a37283c 100644
+--- a/apps/wappush/test/unit/parsed_doc_test.js
++++ b/apps/wappush/test/unit/parsed_doc_test.js
+@@ -321,5 +321,67 @@ suite('ParsedProvisioningDoc >', function() {
+         parsedProvisioningDoc = ParsedProvisioningDoc.from(provisioningDoc);
+         assert.lengthOf(parsedProvisioningDoc.getApns(), 1);
+     });
++    test('Document with same appid different provider id',
++      function() {
++        var parsedProvisioningDoc;
++        var provisioningDoc =
++          '<wap-provisioningdoc>' +
++            '<characteristic type="BOOTSTRAP">' +
++              '<parm name="NAME" value="cmccwap"/>' +
++              '<parm name="PROXY-ID" value="cmccwap_Proxy"/>' +
++            '</characteristic>' +
++            '<characteristic type="NAPDEF">' +
++              '<parm name="NAME" value="cmccwap"/>' +
++              '<parm name="NAPID" value="cmccwap_NAPID"/>' +
++              '<parm name="BEARER" value="GSM-GPRS"/>' +
++              '<parm name="NAP-ADDRESS" value="cmwap_01049"/>' +
++              '<parm name="NAP-ADDRTYPE" value="APN"/>' +
++            '</characteristic>' +
++            '<characteristic type="PXLOGICAL">' +
++              '<parm name="NAME" value="cmccwap_1"/>' +
++              '<parm name="PROXY-ID" value="cmccwap_Proxy_1"/>' +
++              '<parm name="STARTPAGE" value="http://wap.google.com"/>' +
++              '<characteristic type="PXPHYSICAL">' +
++                '<parm name="PHYSICAL-PROXY-ID" value="cmccwap_PhProxy"/>' +
++                '<parm name="PXADDR" value="10.0.0.172"/>' +
++                '<parm name="PXADDRTYPE" value="IPV4"/>' +
++                '<parm name="TO-NAPID" value="cmccwap_NAPID"/>' +
++                '<characteristic type="PORT">' +
++                  '<parm name="PORTNBR" value="9201"/>' +
++                  '<parm name="SERVICE" value="CO-WSP"/>' +
++                '</characteristic>' +
++              '</characteristic>' +
++            '</characteristic>' +
++            '<characteristic type="PXLOGICAL">' +
++              '<parm name="NAME" value="cmccwap_2"/>' +
++              '<parm name="PROXY-ID" value="cmccwap_Proxy_2"/>' +
++              '<parm name="STARTPAGE" value="http://wap.163.com"/>' +
++              '<characteristic type="PXPHYSICAL">' +
++                '<parm name="PHYSICAL-PROXY-ID" value="cmccwap_PhProxy"/>' +
++                '<parm name="PXADDR" value="10.0.0.172"/>' +
++                '<parm name="PXADDRTYPE" value="IPV4"/>' +
++                '<parm name="TO-NAPID" value="cmccwap_NAPID"/>' +
++                '<characteristic type="PORT">' +
++                  '<parm name="PORTNBR" value="9203"/>' +
++                  '<parm name="SERVICE" value="CO-SEC-WSP"/>' +
++                '</characteristic>' +
++              '</characteristic>' +
++            '</characteristic>' +
++            '<characteristic type="APPLICATION">' +
++              '<parm name="APPID" value="w2"/>' +
++              '<parm name="PROVIDER-ID" value="460001"/>' +
++              '<parm name="NAME" value="cmccwap"/>' +
++              '<parm name="TO-PROXY" value="cmccwap_Proxy_1"/>' +
++            '</characteristic>' +
++            '<characteristic type="APPLICATION">' +
++              '<parm name="APPID" value="w2"/>' +
++              '<parm name="PROVIDER-ID" value="460002"/>' +
++              '<parm name="NAME" value="cmccwap"/>' +
++              '<parm name="TO-PROXY" value="cmccwap_Proxy_2"/>' +
++            '</characteristic>' +
++          '</wap-provisioningdoc>' +;
++        parsedProvisioningDoc = ParsedProvisioningDoc.from(provisioningDoc);
++        assert.lengthOf(parsedProvisioningDoc.getApns(), 2);
++    });
+   });
+ });
